@@ -3,6 +3,7 @@
 #include <time.h>
 
 #define LONG long long int
+#define SIZE_PER_THREAD 256
 
 int *generate_random_array(int n) {
 	int *arr = (int *)malloc(n * sizeof(int));
@@ -22,9 +23,13 @@ LONG cpu_dot_product(int *arr1, int *arr2, int n) {
 
 __global__ void kernel_dot_product(int *arr1, int *arr2, int n) {
 	extern __shared__ int partialSum[];
-	int t = blockIdx.x * blockDim.x + threadIdx.x;
-	if (t < n) {
-		partialSum[threadIdx.x] = arr1[t] * arr2[t];
+	int t = (blockIdx.x * blockDim.x + threadIdx.x ) * SIZE_PER_THREAD;
+	partialSum[threadIdx.x] = 0;
+	for (int i = 0; i < SIZE_PER_THREAD; i++)
+	{
+		if(t+i < n) {
+			partialSum[threadIdx.x] += arr1[t+i] * arr2[t+i];
+		}
 	}
 	for (int stride = blockDim.x / 2; stride >= 1; stride >>= 1) {
 		__syncthreads();
@@ -32,7 +37,7 @@ __global__ void kernel_dot_product(int *arr1, int *arr2, int n) {
 			partialSum[threadIdx.x] += partialSum[threadIdx.x + stride];
 		}
 	}
-	arr1[blockIdx.x] = partialSum[0];
+	//arr1[blockIdx.x] = partialSum[0];
 }
 
 int gpu_dot_product(int *arr1, int *arr2, int n, int blocksize) {
@@ -40,13 +45,18 @@ int gpu_dot_product(int *arr1, int *arr2, int n, int blocksize) {
 	int *d_arr2;
 	int *d_n;
 
+	printf("Number of elements: %d\n", n);
+	printf("Number of threads per block: %d\n", blocksize);
+	int num_of_blocks = (n + blocksize * SIZE_PER_THREAD - 1) / (blocksize * SIZE_PER_THREAD);
+	printf("Number of blocks will be created: %d\n", num_of_blocks);
+
 	cudaMalloc((void **)&d_arr1, n * sizeof(int));
 	cudaMalloc((void **)&d_arr2, n * sizeof(int));
 
 	cudaMemcpy(d_arr1, arr1, n* sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_arr2, arr2, n* sizeof(int), cudaMemcpyHostToDevice);
 
-	kernel_dot_product <<< (n + blocksize - 1) / blocksize, blocksize, blocksize * sizeof(int) >>>(d_arr1, d_arr2, n);
+	kernel_dot_product <<< num_of_blocks ,blocksize, blocksize * sizeof(int) >>>(d_arr1, d_arr2, n);
 	cudaThreadSynchronize();
 
 	cudaMemcpy(arr1, d_arr1, 5* sizeof(int), cudaMemcpyDeviceToHost);
