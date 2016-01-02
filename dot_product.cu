@@ -3,7 +3,7 @@
 #include <time.h>
 
 #define LONG long long int
-#define SIZE_PER_THREAD 256
+#define SIZE_PER_THREAD 16
 
 double interval_host_to_device;
 double interval_device_to_host;
@@ -13,7 +13,7 @@ float interval_kernel;
 int *generate_random_array(int n) {
 	int *arr = (int *)malloc(n * sizeof(int));
 	for (int i = 0; i < n; i++) {
-		arr[i] = rand();
+		arr[i] = rand() % 100;
 	}
 	return arr;
 }
